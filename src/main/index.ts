@@ -3,9 +3,8 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 //import Store from 'electron-store';
 import { join } from 'path'
 //import fs from "fs";
-//import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../build/icon.png'
-//import Database from "better-sqlite3-multiple-ciphers";
+import screenshot from "screenshot-desktop";
 
 //export type storeConfig = { instance?: { label: string, id: number, path: string }[] }
 
@@ -40,9 +39,15 @@ const CleePIXMain: {
       }
     }*/
 
-    app.whenReady().then(() => {
+    app.whenReady().then( async () => {
 
       this.Windows.main = this.createWindowInstance();
+
+      /*screenshot({ filename: 'screenshot.png', format: 'png' }).then((img) => {
+        console.log('save screenshot')
+      }).catch((err) => {
+        console.log('faild to save screenshot')
+      })*/
 
       app.on('activate', () => {
         // On macOS it's common to re-create a window in the app when the
@@ -78,9 +83,9 @@ const CleePIXMain: {
   createWindowInstance: function () {
 
     const window = new BrowserWindow({
-      width: 1360,
-      height: 830,
-      show: false, frame: true,
+      width: 900,
+      height: 600,
+      show: false, frame: false,
       autoHideMenuBar: true,
       backgroundColor: "#0f0f0f",
       ...(process.platform === 'linux' ? { icon } : {}),
