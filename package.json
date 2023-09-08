@@ -1,5 +1,5 @@
 {
-  "name": "commander",
+  "name": "transmedia",
   "version": "1.0.0",
   "description": "It is an integrated management application for bookmarks, canned messages, clipboard, and RSS.",
   "main": "./compiled/main/index.js",
@@ -20,8 +20,7 @@
   },
   "dependencies": {
     "@electron-toolkit/preload": "^1.0.3",
-    "node-native-ocr": "^0.3.6",
-    "screenshot-desktop": "^1.14.0"
+    "node-pty": "^1.0.0"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
@@ -34,15 +33,14 @@
     "@mui/lab": "5.0.0-alpha.135",
     "@mui/material": "^5.13.6",
     "@swc/core": "^1.3.67",
-    "@types/better-sqlite3": "^7.6.3",
     "@types/node": "18.15.0",
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
-    "@types/screenshot-desktop": "^1.12.0",
     "@typescript-eslint/eslint-plugin": "^5.54.1",
     "@typescript-eslint/parser": "^5.54.1",
     "@vitejs/plugin-react": "^4.0.1",
     "animate.css": "^4.1.1",
+    "ansi-to-html": "^0.7.2",
     "electron": "^25.2.0",
     "electron-builder": "^24.4.0",
     "electron-rebuild": "^3.2.9",
@@ -50,14 +48,15 @@
     "eslint": "^8.35.0",
     "eslint-config-prettier": "^8.7.0",
     "eslint-plugin-prettier": "^4.2.1",
-    "jimp": "^0.22.8",
     "prettier": "^2.8.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tesseract.js": "^4.1.1",
     "typescript": "^5.1.6",
     "vite": "^4.3.9",
     "vite-plugin-sass-dts": "^1.3.1",
-    "vite-react-jsx": "^1.1.2"
+    "vite-react-jsx": "^1.1.2",
+    "xterm": "^5.2.1",
+    "xterm-addon-canvas": "^0.4.0",
+    "xterm-addon-fit": "^0.7.0"
   }
 }

@@ -1,135 +1,270 @@
 /// <reference types="vite/client" />
-import React, { useState, useEffect } from 'react'
-import CssBaseline  from "@mui/material/CssBaseline"
-import { AppBar, Toolbar, Typography, IconButton, Button } from "@mui/material"
-import { ThemeProvider, createTheme } from "@mui/material/styles"
-import useMediaQuery  from "@mui/material/useMediaQuery"
-
-import TreeView from '@mui/lab/TreeView';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import TreeItem from '@mui/lab/TreeItem';
-import CloseIcon from "@mui/icons-material/Close";
-import MaximizeIcon from "@mui/icons-material/HomeMax";
-import MinimizeIcon from "@mui/icons-material/Minimize";
-
-import { createWorker } from "tesseract.js"
-
-import reactLogo from './react.svg'
-import viteLogo from './electron-vite.animate.svg'
-import ocrImage from './eng_bw.png'
-
 import '../../preload/index.d';
-//import './App.css'
+import AnsiiToHtml from 'ansi-to-html';
+import React, { useState, useEffect, useRef } from 'react'
 
-let ocrWorker: Tesseract.Worker;
-const ocrWorkerInit = () => {
-  createWorker().then( async (wk) => {
-    ocrWorker = wk;
-    await ocrWorker.loadLanguage('eng');
-    await ocrWorker.initialize('eng');
-  })
-}
-ocrWorkerInit()
+import BaseStyle from './components/base';
+import AppBar from './components/appBar';
 
-function App() {
+import {
+  Box, Button, InputLabel, MenuItem, FormControl, styled, Paper,
+  Select, SelectChangeEvent, TextField, Switch, Stack, Checkbox,
+  FormGroup, FormControlLabel, FormLabel, Radio, RadioGroup
+} from "@mui/material"
 
-  const isDarkMode = useMediaQuery('(prefers-color-scheme: dark)')
-  const theme = createTheme({ palette: { mode: isDarkMode ? "dark" : 'light' } })
-  const [count, setCount] = useState(0)
-  const [ocrResults, setOcrResult] = useState([]);
+const Item = styled( Paper )(({ theme }) => ({
+  //backgroundColor: theme.palette.mode === 'dark' ? '#1A2027' : '#fff',
+  ...theme.typography.body2,
+  padding: theme.spacing(1),
+  textAlign: 'center',
+  color: theme.palette.text.secondary,
+}));
 
-  const windowClose = () => {
-    window.electron.ipcRenderer.send('window-close')
+export default function App() {
+  
+  const [ mediaSourceId, setMediaSourceId ] = useState( 10 );
+  const [ isDownloadOnly, setIsDownloadOnly ] = useState( false );
+  const [ mediaSourcePath, setMediaSourcePath ] = useState( '' );
+  const [ savePath, setSavePath ] = useState('');
+  const [ sourceLang, setSourceLang ] = useState<'auto' | 'en' | 'ja'>('auto');
+  const [ isTranslate, setIsTranslate ] = useState( false );
+
+  const logsElement = useRef<HTMLDivElement | null>( null );
+  const savePathRef = useRef<string | null>(null);
+  const isTranslateRef = useRef<boolean | null>( null );
+
+  const convert = new AnsiiToHtml({ newline: true });
+  savePathRef.current = savePath;
+  isTranslateRef.current = isTranslate;
+  let ignore = false;
+
+  useEffect(() => {
+    async function startFetching() {
+      if (!ignore) {
+        window.electron.ipcRenderer.on('script-logs', (_, logString) => {
+          let convertText = convert.toHtml( logString ).replace(/(<br\/>){4,}/g, '');
+          if ( convertText.match(/\[script-end\]/) ) {
+            convertText += `<br/>`;
+          }
+          if ( convertText.match( /\[DeepL\]/ ) && isTranslateRef.current ) {
+            window.electron.ipcRenderer.send('create-run-player-file', savePathRef.current );
+            startDeeplTranslate();
+          }
+          logsElement.current!.insertAdjacentHTML('beforeend', convertText);
+          logsElement.current!.scrollTop = logsElement.current!.scrollHeight;
+        });
+
+        window.addEventListener('keydown', (e) => {
+          if ( e.ctrlKey && e.shiftKey && e.code === 'KeyA' ) {
+            window.electron.ipcRenderer.send('self-run-player', savePathRef.current );
+          }
+        });
+      }
+    }
+    startFetching();
+    return () => { ignore = true };
+  }, []);
+
+  const handleMediaSource = ( e: SelectChangeEvent ) => {
+    setMediaSourceId( Number( e.target.value ) );
   }
 
-  const windowMaxmize = () => {
-    window.electron.ipcRenderer.send('window-maximize');
+  const getSavePath = async () => {
+    const savePath = await window.electron.ipcRenderer.invoke('save-path');
+    if ( savePath ) setSavePath( savePath );
   }
 
-  const windowMiniMize = () => {
-    window.electron.ipcRenderer.send('window-minize');
+  const getLoadLocalfilePath = async () => {
+    const filepath = await window.electron.ipcRenderer.invoke('load-localfile-path');
+    if ( filepath ) setMediaSourcePath( filepath );
   }
 
-  const ocr = async () => {
-    const { data: { text } } = await ocrWorker.recognize(ocrImage);
-    console.log(text);
-    await ocrWorker.terminate();
-    ocrWorkerInit();
+  const openDeeplClient = () => {
+    window.electron.ipcRenderer.send('open-deepl-client');
+  }
 
-    const newOcrResult = ( <p>{ text }</p> );
-    setOcrResult([...ocrResults, newOcrResult]);
+  const sendFormData = () => {
+    window.electron.ipcRenderer.send('translate-start', {
+      mediaSourceId, isDownloadOnly, mediaSourcePath, savePath,
+      sourceLang, isTranslate
+    });
+  }
+
+  const startDeeplTranslate = async () => {
+    const result = await window.electron.ipcRenderer.invoke('deepl-translate', savePathRef.current );
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <AppBar position="static" sx={{ height: '25.6px' }}>
-        <Toolbar sx={{ height: '25.6px', minHeight: 'unset' }} variant="dense" disableGutters>
-          <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
-            gamers-OCR
-          </Typography>
-          <IconButton onClick={ windowMiniMize } aria-label='最小化' sx={{ '-webkit-app-region': 'no-drag', height: '100%' }}>
-            <MinimizeIcon />
-          </IconButton>
-          <IconButton onClick={ windowMaxmize } aria-label='最大化' sx={{ '-webkit-app-region': 'no-drag', height: '100%' }}>
-            <MaximizeIcon />
-          </IconButton>
-          <IconButton sx={{
-            height: '100%',
-            borderRadius: 'unset',
-            '-webkit-app-region': 'no-drag',
-            '&:hover': { backgroundColor: 'red' }
-          }} aria-label='アプリ終了' onClick={ windowClose }>
-            <CloseIcon />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <Button variant="contained" color="primary" onClick={() => setCount((count) => count + 1)}>
-          count is {count}
+    <BaseStyle>
+      <AppBar />
+      <Box component="form" sx={{ padding: '10px', width: '100%' }}>
+        <FormControl variant="standard" sx={{ marginRight: '10px', width: '120px' }}>
+          <InputLabel id="media-source-select-label">メディアソース</InputLabel>
+          <Select
+            labelId="media-source-select-label"
+            id="media-source-select"
+            value={ `${ mediaSourceId }` }
+            label="メディアソース"
+            sx={{ padding: '2px 10px' }}
+            onChange={ handleMediaSource }
+          >
+            <MenuItem value={10}>YouTube</MenuItem>
+            <MenuItem value={20}>X Space</MenuItem>
+            <MenuItem value={30}>ローカル</MenuItem>
+          </Select>
+        </FormControl>
+        <TextField
+          id="media-url-or-path" type="text"
+          variant="standard" label={
+            mediaSourceId === 10 && "動画のURL" ||
+            mediaSourceId === 20 && "スペースアーカイブのURL" ||
+            mediaSourceId === 30 && "ローカルからメディアファイルを読み込む"
+          }
+          placeholder={
+            mediaSourceId === 10 && "例：https://www.youtube.com/watch?v=EEed8S9ECe4" ||
+            mediaSourceId === 20 && "例：https://twitter.com/i/spaces/1YpKkgzQwPBKj?s=20" ||
+            mediaSourceId === 30 && "例：C:\\Users\\tarou\\Downloads\\audio.m4a" || ""
+          }
+          sx={{
+            width: mediaSourceId === 30 && "calc( 100% - 230px )" || "calc( 100% - 130px )",
+            marginRight: mediaSourceId === 30 && '10px' || '0'
+          }}
+          InputLabelProps={{
+            shrink: true,
+          }}
+          inputProps={{ style: {
+            padding: '4px 10px', marginTop: '4px',
+          } }}
+          value={ mediaSourcePath }
+          onChange={(e) => { setMediaSourcePath( e.target.value ) }}
+        />
+        {
+          mediaSourceId === 30 &&
+          <Button
+            variant="outlined"
+            color="primary"
+            sx={{ width: '90px', marginTop: '16px' }}
+            onClick={ getLoadLocalfilePath }
+          >
+              参照
+          </Button>
+        }
+        <TextField
+          id="output-path" type="text"
+          variant="standard" label="保存先のパス"
+          placeholder="例：C:\Users\tarou\Downloads"
+          sx={{ width: 'calc( 100% - 100px )', marginTop: '10px', marginRight: '10px' }}
+          InputLabelProps={{
+            shrink: true,
+          }}
+          inputProps={{ style: {
+            padding: '4px 10px', marginTop: '4px',
+          } }}
+          value={ savePath }
+          onChange={(e) => { setSavePath( e.target.value ) }}
+        />
+        <Button
+          variant="outlined"
+          sx={{ width: '90px', marginTop: '25px' }}
+          color="secondary"
+          onClick={ getSavePath }
+        >
+            参照
         </Button>
-        <Button variant="contained" color="secondary" onClick={ ocr }>
-          OCR
-        </Button>
-        <Button variant="contained" color="secondary" onClick={ windowClose }>
-          閉じる
-        </Button>
-        <p>
-          編集 <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-      <TreeView
-        aria-label="file system navigator"
-        defaultCollapseIcon={<ExpandMoreIcon />}
-        defaultExpandIcon={<ChevronRightIcon />}
-        sx={{ height: 240, flexGrow: 1, maxWidth: 400, overflowY: 'auto' }}
-      >
-        <TreeItem nodeId="1" label="Applications">
-          <TreeItem nodeId="2" label="Calendar" />
-        </TreeItem>
-        <TreeItem nodeId="5" label="Documents">
-          <TreeItem nodeId="10" label="OSS" />
-          <TreeItem nodeId="6" label="MUI">
-            <TreeItem nodeId="8" label="index.js" />
-          </TreeItem>
-        </TreeItem>
-      </TreeView>
-      { ocrResults }
-    </ThemeProvider>
+      </Box>
+      <FormControl component="fieldset" sx={{ padding: '10px', marginTop: '10px' }}>
+        <FormLabel
+          component="legend"
+          sx={{ opacity: 1, width: 'auto', height: 'auto' }}
+        >
+          処理するメディアの言語
+        </FormLabel>
+        <RadioGroup
+          row aria-labelledby="demo-row-radio-buttons-group-label"
+          name="row-radio-buttons-group"
+          value={ sourceLang }
+          onChange={(e) => setSourceLang( e.target.value as any )}
+        >
+          <FormControlLabel disabled={ isDownloadOnly } value="auto" control={<Radio />} label="自動検出" />
+          <FormControlLabel disabled={ isDownloadOnly } value="en" control={<Radio />} label="英語" />
+          <FormControlLabel disabled={ isDownloadOnly } value="ja" control={<Radio />} label="日本語" />
+        </RadioGroup>
+      </FormControl>
+      <FormControl component="fieldset" sx={{ padding: '10px', marginTop: '10px' }}>
+        <FormLabel
+          component="legend"
+          sx={{ opacity: 1, width: 'auto', height: 'auto' }}
+        >
+          字幕の翻訳を有効化
+        </FormLabel>
+        <FormGroup aria-label="position" row>
+          <FormControlLabel
+            value="start"
+            control={<Switch onChange={(_, checked) => { setIsTranslate( checked ) }} disabled={ isDownloadOnly } color="primary" />}
+            label="英語から日本語への翻訳"
+            labelPlacement="start"
+          />
+        </FormGroup>
+      </FormControl>
+      <FormControl component="fieldset" sx={{ padding: '10px', marginTop: '10px' }}>
+        <FormLabel
+          component="legend"
+          sx={{ opacity: 1, width: 'auto', height: 'auto' }}
+        >
+          各種認証／ログイン
+        </FormLabel>
+        <Stack spacing={2} direction="row">
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={ startDeeplTranslate }
+          >X（旧Twitter）</Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={ openDeeplClient }
+          >
+            DeepL
+          </Button>
+        </Stack>
+      </FormControl>
+      <Box sx={{ width: '100%', padding: '10px' }}>
+        <label style={{ padding: '10px' }} htmlFor="log-erea">ログ出力</label>
+        <FormControlLabel
+          sx={{ float: 'right' }}
+          control={<Checkbox />} 
+          label="ダウンロードのみ"
+          disabled={ mediaSourceId === 30 ? true : false }
+          checked={ isDownloadOnly }
+          onChange={(_, checked) => { setIsDownloadOnly( checked ) }}
+        />
+        <Item
+          id='logs-xterm'
+          sx={{
+            width: '100%', height: '200px', //position: 'relative',
+            overflow: 'scroll', textAlign: 'unset'
+          }}
+          ref={ logsElement }
+          //dangerouslySetInnerHTML={{ __html: scriptLogs }}
+        ></Item>
+      </Box>
+      <Box sx={{ width: '100%' }}>
+        <Stack spacing={2} direction="row" sx={{ padding: '0 10px' }}>
+          <Item sx={{ width: '75%' }}>....</Item>
+          <Item sx={{ width: '25%' }}>
+          <Stack spacing={2} direction="row" useFlexGap alignItems={ 'center' }>
+            <Button variant="outlined">クリア</Button>
+            <Button
+              sx={{ flexGrow: 1 }}
+              variant="contained"
+              onClick={ sendFormData }
+            >
+              処理開始
+            </Button>
+          </Stack>
+          </Item>
+        </Stack>
+      </Box>
+    </BaseStyle>
   )
 }
-
-export default App
